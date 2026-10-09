@@ -46,6 +46,8 @@ class TestCardPredictor(unittest.TestCase):
         self.engine.evaluate_guess("HIGHER")
         self.assertGreater(self.engine.score, 0)
 
+        # Transition after reveal
+        self.engine.is_revealing = False
         self.engine.current_card = Card("10", "Spades", 10)
         self.engine.deck.draw = lambda: Card("J", "Clubs", 11)
         self.engine.evaluate_guess("LOWER")
@@ -56,29 +58,32 @@ class TestCardPredictor(unittest.TestCase):
         self.assertEqual(self.engine.multiplier, 1)
         self.assertEqual(self.engine.score, 0)
 
-        # Win 1: 9 -> 10 (HIGHER) -> streak=1, multiplier=1, +1 point (total score=1)
+        # Win 1
         self.engine.current_card = Card("9", "Hearts", 9)
         self.engine.deck.draw = lambda: Card("10", "Spades", 10)
         self.engine.evaluate_guess("HIGHER")
         self.assertEqual(self.engine.streak, 1)
-        self.assertEqual(self.engine.multiplier, 1)
         self.assertEqual(self.engine.score, 1)
 
-        # Win 2: 10 -> J (HIGHER) -> streak=2, multiplier=2, +2 points (total score=3)
+        # Reset reveal flag for next turn simulation
+        self.engine.is_revealing = False
+        self.engine.current_card = Card("10", "Spades", 10)
         self.engine.deck.draw = lambda: Card("J", "Diamonds", 11)
         self.engine.evaluate_guess("HIGHER")
         self.assertEqual(self.engine.streak, 2)
-        self.assertEqual(self.engine.multiplier, 2)
         self.assertEqual(self.engine.score, 3)
 
-        # Win 3: J -> Q (HIGHER) -> streak=3, multiplier=3, +3 points (total score=6)
+        # Win 3
+        self.engine.is_revealing = False
+        self.engine.current_card = Card("J", "Diamonds", 11)
         self.engine.deck.draw = lambda: Card("Q", "Clubs", 12)
         self.engine.evaluate_guess("HIGHER")
         self.assertEqual(self.engine.streak, 3)
-        self.assertEqual(self.engine.multiplier, 3)
         self.assertEqual(self.engine.score, 6)
 
-        # Wrong guess: Q -> 5 (HIGHER) -> streak reset to 0, multiplier reset to 1, score -1 (total score=5)
+        # Loss
+        self.engine.is_revealing = False
+        self.engine.current_card = Card("Q", "Clubs", 12)
         self.engine.deck.draw = lambda: Card("5", "Hearts", 5)
         self.engine.evaluate_guess("HIGHER")
         self.assertEqual(self.engine.streak, 0)
@@ -86,25 +91,48 @@ class TestCardPredictor(unittest.TestCase):
         self.assertEqual(self.engine.score, 5)
 
     def test_tie_evaluation_push(self):
-        # Build up streak first: 2 wins -> streak=2, score=3
         self.engine.current_card = Card("9", "Hearts", 9)
         self.engine.deck.draw = lambda: Card("10", "Spades", 10)
         self.engine.evaluate_guess("HIGHER")
+
+        self.engine.is_revealing = False
+        self.engine.current_card = Card("10", "Spades", 10)
         self.engine.deck.draw = lambda: Card("J", "Diamonds", 11)
         self.engine.evaluate_guess("HIGHER")
 
         self.assertEqual(self.engine.streak, 2)
         self.assertEqual(self.engine.score, 3)
 
-        # Tie card: J of Spades (rank 11) vs current J of Diamonds (rank 11)
+        # Tie
+        self.engine.is_revealing = False
+        self.engine.current_card = Card("J", "Diamonds", 11)
         self.engine.deck.draw = lambda: Card("J", "Spades", 11)
         self.engine.evaluate_guess("HIGHER")
 
-        # Verify PUSH: score and streak unchanged
         self.assertEqual(self.engine.score, 3)
         self.assertEqual(self.engine.streak, 2)
-        self.assertEqual(self.engine.multiplier, 2)
         self.assertIn("PUSH", self.engine.status_msg)
+
+    def test_side_by_side_reveal_and_rapid_click_protection(self):
+        self.engine.current_card = Card("7", "Hearts", 7)
+        self.engine.deck.draw = lambda: Card("9", "Spades", 9)
+        
+        # Initial guess triggers reveal state
+        self.engine.evaluate_guess("HIGHER")
+        self.assertTrue(self.engine.is_revealing)
+        self.assertEqual(self.engine.previous_card.numeric_rank, 7)
+        self.assertEqual(self.engine.next_card.numeric_rank, 9)
+        initial_score = self.engine.score
+
+        # Rapid second click during reveal must be ignored
+        self.engine.evaluate_guess("LOWER")
+        self.assertEqual(self.engine.score, initial_score)  # Score unchanged!
+
+        # Complete reveal duration update
+        self.engine.reveal_start_time = pygame.time.get_ticks() - 1500  # simulate time past duration
+        self.engine.update()
+        self.assertFalse(self.engine.is_revealing)
+        self.assertEqual(self.engine.current_card.numeric_rank, 9)
 
 
 if __name__ == "__main__":

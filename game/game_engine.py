@@ -8,9 +8,13 @@ class GameEngine:
         self.deck = Deck()
 
         self.current_card = self.deck.draw()
+        self.previous_card = None
         self.next_card = None
         self.score = 0
         self.streak = 0
+        self.is_revealing = False
+        self.reveal_start_time = 0
+        self.reveal_duration = 1200  # milliseconds
         self.status_msg = "Will the next card be HIGHER or LOWER?"
         self.status_color = (220, 220, 220)
 
@@ -27,33 +31,41 @@ class GameEngine:
         return max(1, self.streak)
 
     def evaluate_guess(self, guess):
-        """Draws next card and evaluates prediction."""
+        """Draws next card and evaluates prediction with side-by-side reveal."""
+        if self.is_revealing:
+            return
+
+        self.previous_card = self.current_card
         self.next_card = self.deck.draw()
         
-        if self.next_card.numeric_rank == self.current_card.numeric_rank:
+        if self.next_card.numeric_rank == self.previous_card.numeric_rank:
             self.status_msg = f"PUSH! Both cards are {self.next_card.rank_str}"
             self.status_color = (240, 200, 60)
         else:
             if guess == "HIGHER":
-                correct = self.next_card.numeric_rank > self.current_card.numeric_rank
+                correct = self.next_card.numeric_rank > self.previous_card.numeric_rank
             else:
-                correct = self.next_card.numeric_rank < self.current_card.numeric_rank
+                correct = self.next_card.numeric_rank < self.previous_card.numeric_rank
             
             if correct:
                 self.streak += 1
                 points = 1 * self.streak
                 self.score += points
-                self.status_msg = f"CORRECT! {self.next_card.rank_str} vs {self.current_card.rank_str} (+{points} pts)"
+                self.status_msg = f"CORRECT! {self.next_card.rank_str} vs {self.previous_card.rank_str} (+{points} pts)"
                 self.status_color = (80, 220, 80)
             else:
                 self.streak = 0
                 self.score = max(0, self.score - 1)
-                self.status_msg = f"WRONG! {self.next_card.rank_str} vs {self.current_card.rank_str}"
+                self.status_msg = f"WRONG! {self.next_card.rank_str} vs {self.previous_card.rank_str}"
                 self.status_color = (235, 75, 75)
 
-        self.current_card = self.next_card
+        self.is_revealing = True
+        self.reveal_start_time = pygame.time.get_ticks()
 
     def handle_event(self, event):
+        if self.is_revealing:
+            return
+
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.btn_higher.collidepoint(event.pos):
                 self.evaluate_guess("HIGHER")
@@ -61,7 +73,11 @@ class GameEngine:
                 self.evaluate_guess("LOWER")
 
     def update(self):
-        pass
+        if self.is_revealing:
+            now = pygame.time.get_ticks()
+            if now - self.reveal_start_time >= self.reveal_duration:
+                self.is_revealing = False
+                self.current_card = self.next_card
 
     def render(self, screen):
         screen.fill((25, 80, 45))
@@ -79,12 +95,29 @@ class GameEngine:
         screen.blit(rem_surf, (self.width - rem_surf.get_width() - 30, 35))
 
         card_w, card_h = 130, 180
-        self.current_card.render(screen, self.width // 2 - card_w // 2, 100, card_w, card_h)
+        card_y = 110
+
+        if self.is_revealing and self.previous_card and self.next_card:
+            spacing = 30
+            total_w = 2 * card_w + spacing
+            left_x = self.width // 2 - total_w // 2
+            right_x = left_x + card_w + spacing
+
+            prev_label = self.font_small.render("PREVIOUS", True, (200, 200, 200))
+            screen.blit(prev_label, (left_x + card_w // 2 - prev_label.get_width() // 2, card_y - 25))
+            self.previous_card.render(screen, left_x, card_y, card_w, card_h)
+
+            next_label = self.font_small.render("NEW", True, (255, 230, 100))
+            screen.blit(next_label, (right_x + card_w // 2 - next_label.get_width() // 2, card_y - 25))
+            self.next_card.render(screen, right_x, card_y, card_w, card_h)
+        else:
+            self.current_card.render(screen, self.width // 2 - card_w // 2, card_y, card_w, card_h)
 
         status_surf = self.font_small.render(self.status_msg, True, self.status_color)
         screen.blit(status_surf, (self.width // 2 - status_surf.get_width() // 2, 310))
 
-        pygame.draw.rect(screen, (40, 140, 60), self.btn_higher, border_radius=8)
+        btn_high_color = (30, 90, 45) if self.is_revealing else (40, 140, 60)
+        pygame.draw.rect(screen, btn_high_color, self.btn_higher, border_radius=8)
         pygame.draw.rect(screen, (220, 220, 220), self.btn_higher, width=2, border_radius=8)
         high_surf = self.font_medium.render("HIGHER", True, (255, 255, 255))
         screen.blit(
@@ -92,7 +125,8 @@ class GameEngine:
             (self.btn_higher.centerx - high_surf.get_width() // 2, self.btn_higher.centery - high_surf.get_height() // 2),
         )
 
-        pygame.draw.rect(screen, (170, 50, 50), self.btn_lower, border_radius=8)
+        btn_low_color = (110, 35, 35) if self.is_revealing else (170, 50, 50)
+        pygame.draw.rect(screen, btn_low_color, self.btn_lower, border_radius=8)
         pygame.draw.rect(screen, (220, 220, 220), self.btn_lower, width=2, border_radius=8)
         low_surf = self.font_medium.render("LOWER", True, (255, 255, 255))
         screen.blit(
