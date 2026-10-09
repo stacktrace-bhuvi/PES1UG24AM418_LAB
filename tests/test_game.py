@@ -52,7 +52,6 @@ class TestCardPredictor(unittest.TestCase):
         self.assertEqual(self.engine.streak, 0)
 
     def test_consecutive_win_streak_multipliers(self):
-        # Initial state
         self.assertEqual(self.engine.streak, 0)
         self.assertEqual(self.engine.multiplier, 1)
         self.assertEqual(self.engine.score, 0)
@@ -85,6 +84,27 @@ class TestCardPredictor(unittest.TestCase):
         self.assertEqual(self.engine.streak, 0)
         self.assertEqual(self.engine.multiplier, 1)
         self.assertEqual(self.engine.score, 5)
+
+    def test_tie_evaluation_push(self):
+        # Build up streak first: 2 wins -> streak=2, score=3
+        self.engine.current_card = Card("9", "Hearts", 9)
+        self.engine.deck.draw = lambda: Card("10", "Spades", 10)
+        self.engine.evaluate_guess("HIGHER")
+        self.engine.deck.draw = lambda: Card("J", "Diamonds", 11)
+        self.engine.evaluate_guess("HIGHER")
+
+        self.assertEqual(self.engine.streak, 2)
+        self.assertEqual(self.engine.score, 3)
+
+        # Tie card: J of Spades (rank 11) vs current J of Diamonds (rank 11)
+        self.engine.deck.draw = lambda: Card("J", "Spades", 11)
+        self.engine.evaluate_guess("HIGHER")
+
+        # Verify PUSH: score and streak unchanged
+        self.assertEqual(self.engine.score, 3)
+        self.assertEqual(self.engine.streak, 2)
+        self.assertEqual(self.engine.multiplier, 2)
+        self.assertIn("PUSH", self.engine.status_msg)
 
 
 if __name__ == "__main__":
