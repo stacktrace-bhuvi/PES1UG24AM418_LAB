@@ -26,9 +26,9 @@ class GameEngine:
         self.next_card = self.deck.draw()
         
         if guess == "HIGHER":
-            correct = self.next_card.rank_str > self.current_card.rank_str
+            correct = self.next_card.numeric_rank > self.current_card.numeric_rank
         else:
-            correct = self.next_card.rank_str < self.current_card.rank_str
+            correct = self.next_card.numeric_rank < self.current_card.numeric_rank
         
         if correct:
             self.score += 1
