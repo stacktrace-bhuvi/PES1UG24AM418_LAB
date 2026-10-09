@@ -10,6 +10,7 @@ class GameEngine:
         self.current_card = self.deck.draw()
         self.next_card = None
         self.score = 0
+        self.streak = 0
         self.status_msg = "Will the next card be HIGHER or LOWER?"
         self.status_color = (220, 220, 220)
 
@@ -21,6 +22,10 @@ class GameEngine:
         self.font_medium = pygame.font.SysFont(None, 30)
         self.font_small = pygame.font.SysFont(None, 24)
 
+    @property
+    def multiplier(self):
+        return max(1, self.streak)
+
     def evaluate_guess(self, guess):
         """Draws next card and evaluates prediction."""
         self.next_card = self.deck.draw()
@@ -31,10 +36,13 @@ class GameEngine:
             correct = self.next_card.numeric_rank < self.current_card.numeric_rank
         
         if correct:
-            self.score += 1
-            self.status_msg = f"CORRECT! {self.next_card.rank_str} vs {self.current_card.rank_str}"
+            self.streak += 1
+            points = 1 * self.streak
+            self.score += points
+            self.status_msg = f"CORRECT! {self.next_card.rank_str} vs {self.current_card.rank_str} (+{points} pts)"
             self.status_color = (80, 220, 80)
         else:
+            self.streak = 0
             self.score = max(0, self.score - 1)
             self.status_msg = f"WRONG! {self.next_card.rank_str} vs {self.current_card.rank_str}"
             self.status_color = (235, 75, 75)
@@ -58,7 +66,10 @@ class GameEngine:
         screen.blit(title_surf, (self.width // 2 - title_surf.get_width() // 2, 25))
 
         score_surf = self.font_medium.render(f"Score: {self.score}", True, (255, 220, 80))
-        screen.blit(score_surf, (30, 30))
+        screen.blit(score_surf, (30, 25))
+
+        streak_surf = self.font_small.render(f"Streak: {self.streak} ({self.multiplier}x)", True, (200, 230, 255))
+        screen.blit(streak_surf, (30, 55))
 
         rem_surf = self.font_small.render(f"Deck: {self.deck.remaining} left", True, (210, 210, 210))
         screen.blit(rem_surf, (self.width - rem_surf.get_width() - 30, 35))

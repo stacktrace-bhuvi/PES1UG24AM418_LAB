@@ -41,18 +41,50 @@ class TestCardPredictor(unittest.TestCase):
         self.assertTrue(cA.numeric_rank > cK.numeric_rank)
 
     def test_evaluation_higher_lower(self):
-        # Test HIGHER prediction when card is actually higher (10 vs 9)
         self.engine.current_card = Card("9", "Hearts", 9)
-        # Mock deck draw
         self.engine.deck.draw = lambda: Card("10", "Spades", 10)
         self.engine.evaluate_guess("HIGHER")
-        self.assertEqual(self.engine.score, 1)
+        self.assertGreater(self.engine.score, 0)
 
-        # Test LOWER prediction when card is higher (J vs 10) -> WRONG
         self.engine.current_card = Card("10", "Spades", 10)
         self.engine.deck.draw = lambda: Card("J", "Clubs", 11)
         self.engine.evaluate_guess("LOWER")
+        self.assertEqual(self.engine.streak, 0)
+
+    def test_consecutive_win_streak_multipliers(self):
+        # Initial state
+        self.assertEqual(self.engine.streak, 0)
+        self.assertEqual(self.engine.multiplier, 1)
         self.assertEqual(self.engine.score, 0)
+
+        # Win 1: 9 -> 10 (HIGHER) -> streak=1, multiplier=1, +1 point (total score=1)
+        self.engine.current_card = Card("9", "Hearts", 9)
+        self.engine.deck.draw = lambda: Card("10", "Spades", 10)
+        self.engine.evaluate_guess("HIGHER")
+        self.assertEqual(self.engine.streak, 1)
+        self.assertEqual(self.engine.multiplier, 1)
+        self.assertEqual(self.engine.score, 1)
+
+        # Win 2: 10 -> J (HIGHER) -> streak=2, multiplier=2, +2 points (total score=3)
+        self.engine.deck.draw = lambda: Card("J", "Diamonds", 11)
+        self.engine.evaluate_guess("HIGHER")
+        self.assertEqual(self.engine.streak, 2)
+        self.assertEqual(self.engine.multiplier, 2)
+        self.assertEqual(self.engine.score, 3)
+
+        # Win 3: J -> Q (HIGHER) -> streak=3, multiplier=3, +3 points (total score=6)
+        self.engine.deck.draw = lambda: Card("Q", "Clubs", 12)
+        self.engine.evaluate_guess("HIGHER")
+        self.assertEqual(self.engine.streak, 3)
+        self.assertEqual(self.engine.multiplier, 3)
+        self.assertEqual(self.engine.score, 6)
+
+        # Wrong guess: Q -> 5 (HIGHER) -> streak reset to 0, multiplier reset to 1, score -1 (total score=5)
+        self.engine.deck.draw = lambda: Card("5", "Hearts", 5)
+        self.engine.evaluate_guess("HIGHER")
+        self.assertEqual(self.engine.streak, 0)
+        self.assertEqual(self.engine.multiplier, 1)
+        self.assertEqual(self.engine.score, 5)
 
 
 if __name__ == "__main__":
